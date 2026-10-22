@@ -51,15 +51,24 @@ struct Settings {
     }
 }
 
+/// Past 1 MB the log moves to AirClicker.old.log, replacing the previous one, so it never takes more than ~2 MB.
+private let maxLogSize = 1_000_000
+
 func log(_ message: String) {
     let line = "\(Date()) \(message)\n"
     let path = NSHomeDirectory() + "/Library/Logs/AirClicker.log"
+    let fileManager = FileManager.default
+    if let size = (try? fileManager.attributesOfItem(atPath: path))?[.size] as? Int, size > maxLogSize {
+        let oldPath = NSHomeDirectory() + "/Library/Logs/AirClicker.old.log"
+        try? fileManager.removeItem(atPath: oldPath)
+        try? fileManager.moveItem(atPath: path, toPath: oldPath)
+    }
     if let handle = FileHandle(forWritingAtPath: path) {
         handle.seekToEndOfFile()
         handle.write(Data(line.utf8))
         handle.closeFile()
     } else {
-        FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
+        fileManager.createFile(atPath: path, contents: Data(line.utf8))
     }
 }
 

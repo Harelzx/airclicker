@@ -8,6 +8,24 @@ AirClicker is a tiny macOS menu bar app. It reads the motion sensors in your Air
 
 It started as a 15 minute build with [Claude Code](https://claude.com/claude-code) on the morning of a presentation, and was then tuned on 159 logged test flicks.
 
+## Install it with an AI agent
+
+Not comfortable with the terminal? Paste this into Claude Code (or any coding agent that can run commands on your Mac) and it will set everything up for you:
+
+```text
+Install AirClicker on my Mac from https://github.com/Harelzx/airclicker. It is a small macOS menu bar app that turns an AirPod into a presentation clicker.
+
+1. Check that I'm on macOS 14 or later (`sw_vers`). If not, stop and tell me it won't run.
+2. Check that the Xcode Command Line Tools are installed (`xcode-select -p`). If they're missing, run `xcode-select --install`, tell me to click Install in the window that opens, and wait until I confirm it finished.
+3. Clone the repo into ~/airclicker (or `git pull` there if it already exists), then run `./build.sh` inside it. If the build fails, show me the error and fix it before going on.
+4. Copy build/AirClicker.app to /Applications (replace any older copy) and open it.
+5. Walk me through the two permissions macOS will ask for, one at a time, and wait for me after each:
+   - Motion & Fitness: click Allow.
+   - Accessibility: click the AirPod icon in the menu bar, choose "Grant Accessibility permission…", then turn AirClicker on in System Settings → Privacy & Security → Accessibility.
+6. Tell me how to use it: connect my AirPods to the Mac, turn on "Presentation mode" in the menu, check that the menu shows "Motion sensors: receiving ●", hold one AirPod and flick right for the next slide, left for the previous one.
+7. Offer to open demo/index.html from the repo in my browser so I can practise.
+```
+
 ## Requirements
 
 - macOS 14 or later
@@ -51,10 +69,11 @@ Want to try it before your real talk? Open [`demo/index.html`](demo/index.html) 
 - Flick from the wrist, quick and wide. A slow turn is ignored on purpose, so normal hand movement while you talk never changes a slide.
 - Right flicks are often weaker than left ones. If they get missed, set Sensitivity to High, or turn on **Reverse direction** so your stronger flick moves forward.
 - Wait for the slide to change before the next flick: the swing back to center is ignored for about half a second.
+- Turn off **Presentation mode** when your talk is over. While it's on, AirClicker plays silent audio to keep the AirPods connected, which uses AirPods and Mac battery.
 
 ## Privacy
 
-AirClicker has no network code. Motion data stays on your Mac and is used only to detect flicks; the only thing it writes is a local log of flick timings in `~/Library/Logs/AirClicker.log`.
+AirClicker has no network code. Motion data stays on your Mac and is used only to detect flicks; the only thing it writes is a local log of flick timings in `~/Library/Logs/AirClicker.log`, capped at about 2 MB (older entries move to `AirClicker.old.log`, which is replaced each time).
 
 ## How it works
 
