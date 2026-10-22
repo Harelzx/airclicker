@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirClicker Deck</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --bg-2: #161b22;
+    --ink: #e9ecf1;
+    --muted: #8b94a3;
+    --line: #262d38;
+    --accent: #7cf2c4;
+    --accent-2: #8fb4ff;
+    --violet: #c9a7ff;
+    --clay: #d97757;
+    --warn: #ff8f7a;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); overflow: hidden; }
+  body.idle { cursor: none; }
+
+  /* A fixed 1920×1080 stage, scaled to fit the window. */
+  #stage {
+    position: absolute; top: 50%; left: 50%;
+    width: 1920px; height: 1080px;
+    transform-origin: 0 0;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  /* Living background: drifting aurora over a faint grid. */
+  .aurora { position: absolute; inset: -20%; pointer-events: none; }
+  .aurora i { position: absolute; border-radius: 50%; display: block; }
+  .aurora i:nth-child(1) { width: 1100px; height: 1100px; left: 55%; top: -5%; background: radial-gradient(closest-side, rgba(124,242,196,.13), transparent); animation: drift1 18s ease-in-out infinite alternate; }
+  .aurora i:nth-child(2) { width: 1200px; height: 1200px; left: 0; top: 40%; background: radial-gradient(closest-side, rgba(143,180,255,.11), transparent); animation: drift2 22s ease-in-out infinite alternate; }
+  .aurora i:nth-child(3) { width: 800px; height: 800px; left: 35%; top: 10%; background: radial-gradient(closest-side, rgba(201,167,255,.07), transparent); animation: drift1 26s ease-in-out infinite alternate-reverse; }
+  @keyframes drift1 { to { transform: translate(-260px, 180px) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(320px, -160px) scale(.9); } }
+  .grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 80px 80px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%);
+  }
+
+  /* Slides: a flick pushes the old slide out with blur and zooms the new one in. */
+  .slide {
+    position: absolute; inset: 0;
+    padding: 100px 150px 120px;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: transform .7s var(--ease), opacity .5s var(--ease), filter .6s var(--ease), visibility 0s .7s;
+  }
+  .slide.active { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  .slide.notrans { transition: none !important; }
+  .slide.from-right { transform: translateX(240px) scale(1.08); filter: blur(16px); opacity: 0; }
+  .slide.from-left { transform: translateX(-240px) scale(1.08); filter: blur(16px); opacity: 0; }
+  .slide.to-left { transform: translateX(-280px) scale(.9); filter: blur(14px); opacity: 0; visibility: visible; }
+  .slide.to-right { transform: translateX(280px) scale(.9); filter: blur(14px); opacity: 0; visibility: visible; }
+
+  /* Slow push-in while a slide is on screen. */
+  .inner { height: 100%; display: flex; flex-direction: column; justify-content: center; position: relative; }
+  .slide.shown .inner { animation: push 14s ease-out both; }
+  @keyframes push { from { transform: scale(1); } to { transform: scale(1.035); } }
+
+  /* Blocks rise in, one after another. */
+  .in { opacity: 0; transform: translateY(34px); }
+  .slide.shown .in, .slide.to-left .in, .slide.to-right .in { opacity: 1; transform: none; }
+  .slide.shown .in { transition: opacity .7s var(--ease) var(--delay, 0s), transform .7s var(--ease) var(--delay, 0s); }
+
+  /* Headlines reveal word by word from behind a mask. */
+  .w { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 .02em .12em; margin-bottom: -.12em; }
+  .w > span { display: inline-block; transform: translateY(110%) rotate(5deg); transform-origin: 0 100%; }
+  .slide.shown .w > span, .slide.to-left .w > span, .slide.to-right .w > span { transform: none; }
+  .slide.shown .w > span { transition: transform .85s var(--ease) calc(var(--d) * 70ms + 120ms); }
+
+  .kicker { font: 600 30px/1 var(--mono); color: var(--accent); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 36px; }
+  h1 { font-size: 150px; line-height: 1; font-weight: 800; letter-spacing: -.035em; }
+  h2 { font-size: 104px; line-height: 1.04; font-weight: 800; letter-spacing: -.03em; }
+  .sub { font-size: 48px; line-height: 1.3; color: var(--muted); margin-top: 44px; font-weight: 500; }
+
+  /* Accent words shimmer. */
+  .hl .w > span, .hl-2 .w > span {
+    background: linear-gradient(100deg, var(--accent) 0%, var(--accent) 35%, #e6fff5 50%, var(--accent) 65%, var(--accent) 100%);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 4.5s linear infinite;
+  }
+  .hl-2 .w > span { background-image: linear-gradient(100deg, var(--accent-2) 0%, var(--accent-2) 35%, #f0f5ff 50%, var(--accent-2) 65%, var(--accent-2) 100%); }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+
+  /* 1. Hook */
+  .hero { display: grid; grid-template-columns: 1fr 560px; align-items: center; gap: 40px; }
+  .gesture { display: flex; gap: 40px; margin-top: 60px; font-size: 44px; font-weight: 600; }
+  .gesture span { display: inline-flex; align-items: center; gap: 18px; padding: 20px 34px; border: 2px solid var(--line); border-radius: 999px; background: rgba(22,27,34,.8); }
+  .gesture b { color: var(--accent); font-size: 52px; display: inline-block; }
+  .slide.shown .gesture span:first-child b { animation: nudgeR 1.6s var(--ease) 1.2s infinite; }
+  .slide.shown .gesture span:last-child b { animation: nudgeL 1.6s var(--ease) 2s infinite; }
+  @keyframes nudgeR { 0%, 60%, 100% { transform: none; } 30% { transform: translateX(14px); } }
+  @keyframes nudgeL { 0%, 60%, 100% { transform: none; } 30% { transform: translateX(-14px); } }
+  .pod-stage { position: relative; height: 760px; }
+  .pod-glow { position: absolute; left: 50%; top: 42%; width: 620px; height: 620px; margin: -310px; border-radius: 50%; background: radial-gradient(closest-side, rgba(124,242,196,.28), transparent 70%); animation: glow 3.2s var(--ease) infinite; }
+  @keyframes glow { 0%, 55%, 100% { transform: scale(.85); opacity: .6; } 64% { transform: scale(1.15); opacity: 1; } }
+  .arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .arcs path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: arc 3.2s var(--ease) infinite; }
+  .arcs path:nth-child(2) { animation-delay: .06s; stroke-width: 5; opacity: .7; }
+  .arcs path:nth-child(3) { animation-delay: .12s; stroke-width: 4; opacity: .45; }
+  @keyframes arc { 0%, 56% { stroke-dashoffset: 1; opacity: 0; } 62% { opacity: 1; } 70% { stroke-dashoffset: 0; opacity: 1; } 85%, 100% { stroke-dashoffset: -1; opacity: 0; } }
+  .pod-wrap { position: absolute; left: 70px; top: 90px; width: 420px; animation: flick 3.2s var(--ease) infinite; transform-origin: 62% 88%; }
+  .pod { width: 100%; filter: drop-shadow(0 40px 60px rgba(0,0,0,.55)); }
+  @keyframes flick {
+    0%, 52%, 100% { transform: rotate(0); }
+    58% { transform: rotate(10deg); }
+    66% { transform: rotate(-30deg); }
+    74% { transform: rotate(5deg); }
+    82% { transform: rotate(0); }
+  }
+
+  /* 2. Claude Code session */
+  .prompt-slide h2 { font-size: 84px; }
+  .cc { margin-top: 40px; border: 2px solid var(--line); border-radius: 22px; background: rgba(13,15,19,.94); overflow: hidden; box-shadow: 0 40px 120px rgba(0,0,0,.5); }
+  .cc-bar { display: flex; gap: 12px; padding: 18px 26px; border-bottom: 2px solid var(--line); align-items: center; }
+  .cc-bar i { width: 16px; height: 16px; border-radius: 50%; display: block; }
+  .cc-bar i:nth-child(1) { background: #ff5f57; } .cc-bar i:nth-child(2) { background: #febc2e; } .cc-bar i:nth-child(3) { background: #28c840; }
+  .cc-bar em { flex: 1; text-align: center; margin-right: 76px; font: 500 22px var(--mono); color: var(--muted); font-style: normal; }
+  .cc-body { padding: 30px 40px 34px; font: 500 28px/1.5 var(--mono); color: #e6e6e6; }
+  .cc-welcome { border: 2px solid var(--clay); border-radius: 12px; padding: 14px 24px; width: fit-content; min-width: 720px; }
+  .cc-welcome b { font-weight: 600; }
+  .cc-dim { color: #8a8f98; }
+  .clay { color: var(--clay); }
+  .cc-user { margin-top: 26px; padding: 12px 20px; background: rgba(255,255,255,.06); border-radius: 8px; min-height: 2.9em; }
+  .cc-user .cc-dim { margin-right: 14px; }
+  .cc-line { margin-top: 16px; display: flex; gap: 18px; opacity: 0; transform: translateY(12px); transition: opacity .4s var(--ease), transform .4s var(--ease); }
+  .cc-line.on { opacity: 1; transform: none; }
+  .cc-line > span:first-child { flex: 0 0 auto; }
+  .dot-w { color: #e6e6e6; } .dot-g { color: #4eba65; }
+  .cc-think { margin-top: 16px; color: var(--clay); visibility: hidden; height: 0; }
+  .cc-think.on { visibility: visible; height: auto; }
+  .cc-think .star { display: inline-block; animation: spin 1.2s linear infinite; margin-right: 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cc-input { margin-top: 26px; border: 2px solid #3a3f47; border-radius: 12px; padding: 10px 20px; color: #8a8f98; }
+  .caret { display: inline-block; width: .55em; height: 1.05em; background: #e6e6e6; vertical-align: -.15em; margin-left: 4px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 3. The gyroscope */
+  .viz { display: grid; grid-template-columns: 1fr 400px; gap: 60px; align-items: center; margin-top: 46px; }
+  .chart { width: 100%; height: auto; overflow: visible; }
+  .chart .axis { stroke: var(--line); stroke-width: 2; }
+  .chart .thr { stroke: var(--warn); stroke-width: 3; stroke-dasharray: 12 12; }
+  .chart .thr-label { font: 600 24px var(--mono); fill: var(--warn); }
+  .chart .area { fill: url(#areag); }
+  .chart .sig { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; filter: drop-shadow(0 0 10px rgba(124,242,196,.55)); }
+  .chart .cap { font: 500 24px var(--mono); fill: var(--muted); }
+  .chart .tag-next rect { fill: var(--accent); }
+  .chart .tag-next text { font: 800 30px var(--sans); fill: #0b1a14; }
+  .chart .tag-back text { font: 600 24px var(--mono); fill: var(--muted); }
+  .chart .dot { fill: var(--accent); }
+  .chart .ping { fill: none; stroke: var(--accent); stroke-width: 3; transform-box: fill-box; transform-origin: center; }
+  .slide.shown .chart .sig { animation: draw 2.2s cubic-bezier(.45,.05,.4,1) .5s both; }
+  .slide.shown .chart .area { animation: fade 1s ease 1.9s both; }
+  .slide.shown .chart .thr, .slide.shown .chart .thr-label { animation: fade .6s ease .3s both; }
+  .slide.shown .chart .peak { animation: pop .6s var(--ease) 1.45s both; }
+  .slide.shown .chart .ping { animation: ping 1.6s ease-out 1.5s infinite; }
+  .slide.shown .chart .tag-back { animation: fade .6s ease 2.2s both; }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+  @keyframes ping { from { transform: scale(1); opacity: .9; } to { transform: scale(4); opacity: 0; } }
+  .peak { transform-origin: 0 0; }
+  .gauge { position: relative; width: 400px; height: 400px; }
+  .gauge svg { width: 100%; height: 100%; overflow: visible; }
+  .gauge .track { fill: none; stroke: var(--line); stroke-width: 22; }
+  .gauge .fill { fill: none; stroke: var(--accent); stroke-width: 22; stroke-linecap: round; stroke-dasharray: 114 400; transform: rotate(-90deg); transform-origin: 200px 200px; filter: drop-shadow(0 0 12px rgba(124,242,196,.6)); }
+  .slide.shown .gauge .fill { animation: sweep 1.5s var(--ease) .9s both; }
+  @keyframes sweep { from { stroke-dashoffset: 114; } to { stroke-dashoffset: 0; } }
+  .gauge .tick { stroke: var(--warn); stroke-width: 6; stroke-linecap: round; }
+  .gauge .read { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .gauge .read b { font-size: 108px; font-weight: 800; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .gauge .read span { font: 500 24px/1.4 var(--mono); color: var(--muted); }
+  .gauge .read span em { color: var(--warn); font-style: normal; }
+
+  /* 4. Pipeline */
+  .pipe { display: grid; grid-template-columns: 1fr 110px 1fr 110px 1fr; align-items: stretch; margin-top: 70px; }
+  .step { border: 2px solid var(--line); border-radius: 28px; padding: 44px 40px; background: rgba(22,27,34,.85); position: relative; overflow: hidden; }
+  .step::after { content: ""; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(124,242,196,.10) 50%, transparent 70%); transform: translateX(-100%); }
+  .slide.shown .step::after { animation: sweepbg 1.2s ease var(--sweep, 1s) both; }
+  @keyframes sweepbg { to { transform: translateX(100%); } }
+  .step .n { font: 700 28px var(--mono); color: var(--accent); }
+  .step h3 { font-size: 72px; margin: 18px 0 22px; letter-spacing: -.02em; line-height: 1.08; }
+  .step p { font-size: 40px; line-height: 1.35; color: var(--muted); }
+  .wire { align-self: center; height: 4px; margin: 0 14px; background: var(--line); border-radius: 2px; position: relative; }
+  .wire::after { content: ""; position: absolute; right: -4px; top: -8px; border: 10px solid transparent; border-left: 14px solid var(--line); border-right: 0; }
+  .wire i { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 24px var(--accent); opacity: 0; display: block; }
+  .slide.shown .wire i { animation: travel 1.3s ease-in-out infinite; animation-delay: var(--wd, 1s); }
+  @keyframes travel { 0% { left: 0; opacity: 0; } 15%, 80% { opacity: 1; } 100% { left: calc(100% - 18px); opacity: 0; } }
+
+  /* 5. Numbers */
+  .nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px; margin-top: 70px; }
+  .num { position: relative; padding-top: 34px; }
+  .num::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--c, var(--accent)); transform-origin: 0 0; box-shadow: 0 0 18px var(--c, var(--accent)); }
+  .slide.shown .num::before { animation: grow 1s var(--ease) var(--delay, .3s) both; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .num b { display: block; font-size: 168px; line-height: 1; font-weight: 800; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+  .num span { display: block; font-size: 36px; line-height: 1.3; color: var(--muted); margin-top: 22px; }
+
+  /* 6. Payoff: words punch in from the camera. */
+  .payoff .inner { align-items: center; text-align: center; }
+  .payoff h1 { font-size: 140px; max-width: 1600px; position: relative; z-index: 1; }
+  .payoff .sub { max-width: 1300px; }
+  .payoff .w { overflow: visible; }
+  .payoff .w > span { transform: scale(2.4); opacity: 0; filter: blur(14px); transform-origin: 50% 60%; }
+  .slide.payoff.shown .w > span, .slide.payoff.to-left .w > span, .slide.payoff.to-right .w > span { transform: none; opacity: 1; filter: none; }
+  .slide.payoff.shown .w > span { transition: transform .8s var(--ease) calc(var(--d) * 110ms + 150ms), opacity .4s ease calc(var(--d) * 110ms + 150ms), filter .7s ease calc(var(--d) * 110ms + 150ms); }
+  .burst { position: absolute; left: 50%; top: 46%; width: 0; height: 0; pointer-events: none; }
+  .burst i { position: absolute; left: -300px; top: -300px; width: 600px; height: 600px; border-radius: 50%; border: 3px solid var(--accent); opacity: 0; display: block; }
+  .slide.payoff.shown .burst i { animation: burst 5s ease-out .4s infinite; }
+  .slide.payoff.shown .burst i:nth-child(2) { animation-delay: 2.9s; }
+  @keyframes burst { from { transform: scale(.3); opacity: .35; } 70%, to { transform: scale(2.6); opacity: 0; } }
+
+  /* 7. Close */
+  .close h1 { font-size: 168px; }
+  .badge { display: inline-flex; align-items: center; gap: 18px; margin-top: 70px; padding: 22px 36px; border-radius: 999px; border: 2px solid var(--line); background: rgba(22,27,34,.85); font: 600 36px var(--mono); color: var(--ink); width: fit-content; }
+  .badge i { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); display: block; box-shadow: 0 0 22px var(--accent); animation: beat 1.4s ease-in-out infinite; }
+  @keyframes beat { 50% { transform: scale(1.5); box-shadow: 0 0 36px var(--accent); } }
+
+  /* Chrome: counter, progress, flick effects */
+  #counter { position: absolute; right: 70px; bottom: 54px; font: 600 30px var(--mono); color: var(--muted); letter-spacing: .06em; }
+  #counter b { color: var(--ink); display: inline-block; }
+  #counter b.pop { animation: cpop .5s var(--ease); }
+  @keyframes cpop { from { transform: translateY(-60%) scale(1.4); opacity: 0; color: var(--accent); } }
+  #brand { position: absolute; left: 70px; bottom: 54px; font: 600 26px var(--mono); color: var(--muted); display: flex; gap: 14px; align-items: center; }
+  #brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); display: block; }
+  #progress { position: absolute; left: 0; bottom: 0; height: 8px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); box-shadow: 0 0 20px var(--accent); transition: width .7s var(--ease); }
+
+  .fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+  .edge { position: absolute; top: 0; bottom: 0; width: 320px; opacity: 0; }
+  .edge.right { right: 0; background: linear-gradient(270deg, rgba(124,242,196,.4), transparent); }
+  .edge.left { left: 0; background: linear-gradient(90deg, rgba(143,180,255,.4), transparent); }
+  .ring { position: absolute; top: 50%; width: 400px; height: 400px; margin-top: -200px; border-radius: 50%; opacity: 0; }
+  .ring.right { right: -200px; border: 6px solid var(--accent); }
+  .ring.left { left: -200px; border: 6px solid var(--accent-2); }
+  .go .edge { animation: fade-out .7s var(--ease); }
+  .go .ring { animation: ring .8s var(--ease); }
+  @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes ring { from { transform: scale(.2); opacity: 1; } to { transform: scale(4.5); opacity: 0; } }
+  .streaks i { position: absolute; left: 0; height: 3px; border-radius: 3px; opacity: 0; display: block; }
+  .go.right .streaks i { background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: streak-l .6s var(--ease) var(--dl) both; }
+  .go.left .streaks i { background: linear-gradient(90deg, transparent, var(--accent-2), transparent); animation: streak-r .6s var(--ease) var(--dl) both; }
+  @keyframes streak-l { from { transform: translateX(2100px); opacity: 0; } 25% { opacity: .9; } to { transform: translateX(-700px); opacity: 0; } }
+  @keyframes streak-r { from { transform: translateX(-700px); opacity: 0; } 25% { opacity: .9; } to { transform: translateX(2100px); opacity: 0; } }
+
+  #hint { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); font: 500 14px var(--mono); color: var(--muted); background: rgba(22,27,34,.9); padding: 8px 14px; border-radius: 8px; transition: opacity .4s; }
+  body.idle #hint, :fullscreen #hint { opacity: 0; }
+
+  /* ?still turns motion off, for screenshots and PDF export. */
+  .still *, .still *::before, .still *::after { transition: none !important; animation: none !important; }
+  .still #hint, .still .fx { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .01s !important; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="aurora"><i></i><i></i><i></i></div>
+  <div class="grid"></div>
+
+  <!-- 1. Hook -->
+  <section class="slide">
+    <div class="inner">
+      <div class="hero">
+        <div>
+          <div class="kicker in">Look, no clicker</div>
+          <h1 class="words">This deck is controlled by an <span class="hl">AirPod.</span></h1>
+          <div class="gesture in">
+            <span>Flick right <b>→</b> next</span>
+            <span>Flick left <b>←</b> back</span>
+          </div>
+        </div>
+        <div class="pod-stage in" aria-hidden="true">
+          <div class="pod-glow"></div>
+          <svg class="arcs" viewBox="0 0 560 760">
+            <path pathLength="1" d="M150 70 Q40 170 70 330"/>
+            <path pathLength="1" d="M105 40 Q-20 160 15 360"/>
+            <path pathLength="1" d="M60 10 Q-80 150 -40 390"/>
+          </svg>
+          <div class="pod-wrap">
+            <svg class="pod" viewBox="0 0 260 420">
+              <defs>
+                <linearGradient id="podg" x1="0" x2="1">
+                  <stop offset="0" stop-color="#ffffff"/>
+                  <stop offset=".6" stop-color="#e8ebf0"/>
+                  <stop offset="1" stop-color="#b9c0cb"/>
+                </linearGradient>
+              </defs>
+              <ellipse cx="118" cy="110" rx="96" ry="92" fill="url(#podg)"/>
+              <ellipse cx="70" cy="108" rx="34" ry="40" fill="#2a313b"/>
+              <ellipse cx="70" cy="108" rx="26" ry="31" fill="#3a434f"/>
+              <rect x="140" y="150" width="62" height="250" rx="31" fill="url(#podg)"/>
+              <rect x="158" y="300" width="26" height="60" rx="13" fill="#d3d8df"/>
+              <circle cx="171" cy="384" r="6" fill="#8b94a3"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. The Claude Code session -->
+  <section class="slide prompt-slide">
+    <div class="inner">
+      <div class="kicker in">Minute 0</div>
+      <h2 class="words">It started with one message.</h2>
+      <div class="cc in">
+        <div class="cc-bar"><i></i><i></i><i></i><em>claude · airpods_clicker</em></div>
+        <div class="cc-body">
+          <div class="cc-welcome"><span class="clay">✻</span> <b>Welcome to Claude Code!</b><br><span class="cc-dim">cwd: ~/Desktop/airpods_clicker</span></div>
+          <div class="cc-user"><span class="cc-dim">&gt;</span><span class="typed" data-text="My AirPods have Bluetooth and a gyroscope. Turn one into a clicker for my Mac. I'm presenting today."></span></div>
+          <div class="cc-think"><span class="star">✻</span>Thinking…</div>
+          <div class="cc-line"><span class="dot-w">⏺</span><span>On it. I'll read the AirPod's motion and turn a wrist flick into a slide change.</span></div>
+          <div class="cc-line"><span class="dot-g">⏺</span><span><b>Write</b>(Sources/AirClicker/main.swift)<br><span class="cc-dim">⎿&nbsp; Wrote the menu bar app</span></span></div>
+          <div class="cc-line"><span class="dot-w">⏺</span><span>Ready. Hold one AirPod: flick right for next, left for back.</span></div>
+          <div class="cc-input">&gt; <span class="caret"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. The gyroscope -->
+  <section class="slide">
+    <div class="inner">
+      <div class="kicker in">The trick</div>
+      <h2 class="words">Every AirPod has a <span class="hl">gyroscope.</span></h2>
+      <div class="viz in">
+        <svg class="chart" viewBox="0 0 1180 430" aria-label="Rotation speed during a flick">
+          <defs>
+            <linearGradient id="areag" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="rgba(124,242,196,.32)"/>
+              <stop offset="1" stop-color="rgba(124,242,196,0)"/>
+            </linearGradient>
+          </defs>
+          <line class="axis" x1="0" x2="1180" y1="300" y2="300"/>
+          <text class="cap" x="0" y="345">how fast the AirPod turns</text>
+          <line class="thr" x1="0" x2="1180" y1="112" y2="112"/>
+          <text class="thr-label" x="1180" y="98" text-anchor="end">fast enough = flick</text>
+          <path class="area"/>
+          <path class="sig" pathLength="1"/>
+          <g class="peak-pos"><g class="peak">
+            <circle class="ping" r="12"/>
+            <circle class="dot" r="12"/>
+            <g class="tag-next"><rect x="30" y="-30" width="210" height="60" rx="30"/><text x="135" y="11" text-anchor="middle">NEXT →</text></g>
+          </g></g>
+          <g class="tag-back"><text>swing back · ignored</text></g>
+        </svg>
+        <div class="gauge">
+          <svg viewBox="0 0 400 400">
+            <circle class="track" cx="200" cy="200" r="160"/>
+            <circle class="fill" cx="200" cy="200" r="160" pathLength="360"/>
+            <line class="tick" x1="334.3" y1="164" x2="369.1" y2="154.7"/>
+          </svg>
+          <div class="read">
+            <b data-to="114" data-suffix="°">114°</b>
+            <span>wrist turn<br><em>wide enough</em></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. How it works -->
+  <section class="slide">
+    <div class="inner">
+      <div class="kicker in">Under the hood</div>
+      <h2 class="words">Gyroscope in, <span class="hl">arrow key out.</span></h2>
+      <div class="pipe">
+        <div class="step in" style="--delay:.5s; --sweep:1.1s">
+          <div class="n">01</div>
+          <h3>Sense</h3>
+          <p>The AirPod reports its motion 50 times a second.</p>
+        </div>
+        <div class="wire in" style="--delay:.7s; --wd:1.2s"><i></i></div>
+        <div class="step in" style="--delay:.85s; --sweep:1.5s">
+          <div class="n">02</div>
+          <h3>Detect</h3>
+          <p>Fast and wide enough? That's a flick.</p>
+        </div>
+        <div class="wire in" style="--delay:1.05s; --wd:1.85s"><i></i></div>
+        <div class="step in" style="--delay:1.2s; --sweep:1.9s">
+          <div class="n">03</div>
+          <h3>Click</h3>
+          <p>Keynote, PowerPoint, Google Slides. Any deck.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Numbers -->
+  <section class="slide">
+    <div class="inner">
+      <div class="kicker in">By the numbers</div>
+      <h2 class="words">Small tool. <span class="hl">Big relief.</span></h2>
+      <div class="nums">
+        <div class="num in" style="--delay:.4s; --c:var(--accent)"><b data-to="15">15</b><span>minutes from idea to a working clicker</span></div>
+        <div class="num in" style="--delay:.55s; --c:var(--accent-2)"><b data-to="1">1</b><span>AirPod. That&rsquo;s the whole clicker.</span></div>
+        <div class="num in" style="--delay:.7s; --c:var(--violet)"><b data-to="159">159</b><span>test flicks to get it right</span></div>
+        <div class="num in" style="--delay:.85s; --c:var(--warn)"><b data-to="0">0</b><span>extra hardware</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Payoff -->
+  <section class="slide payoff">
+    <div class="inner">
+      <div class="burst"><i></i><i></i></div>
+      <div class="kicker in">Still no clicker</div>
+      <h1 class="words">This slide changed because I <span class="hl">flicked an AirPod.</span></h1>
+      <p class="sub in" style="--delay:1.3s">The problem showed up in the morning. It was solved before the coffee got cold.</p>
+    </div>
+  </section>
+
+  <!-- 7. Close -->
+  <section class="slide close">
+    <div class="inner">
+      <div class="kicker in">Your turn</div>
+      <h1 class="words">What would <span class="hl-2">you</span> build in 15 minutes?</h1>
+      <div class="badge in" style="--delay:1s"><i></i>Built with Claude Code</div>
+    </div>
+  </section>
+
+  <div class="fx" id="fx">
+    <div class="edge right"></div><div class="edge left"></div>
+    <div class="ring right"></div><div class="ring left"></div>
+    <div class="streaks"></div>
+  </div>
+  <div id="brand"><i></i>AirClicker</div>
+  <div id="counter"><b>01</b> / 07</div>
+  <div id="progress"></div>
+</div>
+<div id="hint">← → or flick an AirPod · F for fullscreen</div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const slides = [...document.querySelectorAll('.slide')];
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const fx = document.getElementById('fx');
+  const still = new URLSearchParams(location.search).has('still');
+  const pad = n => String(n).padStart(2, '0');
+  let index = 0;
+  let timers = [];
+
+  if (still) document.body.classList.add('still');
+
+  function fit() {
+    const scale = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `scale(${scale}) translate(-50%, -50%)`;
+  }
+
+  // Wrap every word of a headline so it can be revealed on its own.
+  function splitWords(el) {
+    let d = 0;
+    const walk = node => [...node.childNodes].forEach(n => {
+      if (n.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        n.textContent.split(/(\s+)/).forEach(part => {
+          if (!part) return;
+          if (/^\s+$/.test(part)) return frag.append(' ');
+          const w = document.createElement('span');
+          const inner = document.createElement('span');
+          w.className = 'w';
+          inner.textContent = part;
+          inner.style.setProperty('--d', d++);
+          w.append(inner);
+          frag.append(w);
+        });
+        n.replaceWith(frag);
+      } else if (n.nodeType === 1 && n.tagName !== 'BR') walk(n);
+    });
+    walk(el);
+  }
+  document.querySelectorAll('.words').forEach(splitWords);
+
+  // Stagger the rising blocks of each slide in document order, unless a delay is set inline.
+  slides.forEach(s => s.querySelectorAll('.in').forEach((el, i) => {
+    if (!el.style.getPropertyValue('--delay')) el.style.setProperty('--delay', `${i * .14 + .1}s`);
+  }));
+
+  // Signal for slide 3: calm noise, one sharp flick, then the smaller swing back.
+  (function buildChart() {
+    const W = 1180, y0 = 300, k = 29, N = 260;
+    const rate = t => {
+      const spike = 9.6 * Math.exp(-(((t - .5) / .028) ** 2));
+      const back = -3.3 * Math.exp(-(((t - .62) / .035) ** 2));
+      const noise = .3 * Math.sin(t * 90) + .22 * Math.sin(t * 37 + 1) + .18 * Math.sin(t * 151 + 2);
+      return noise * (1 - Math.min(1, spike / 3)) + spike + back;
+    };
+    const pts = [];
+    let peak = { v: -Infinity }, dip = { v: Infinity };
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, v = rate(t), p = { x: t * W, y: y0 - v * k, v };
+      pts.push(p);
+      if (v > peak.v) peak = p;
+      if (v < dip.v) dip = p;
+    }
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('');
+    document.querySelector('.chart .sig').setAttribute('d', line);
+    document.querySelector('.chart .area').setAttribute('d', `${line}L${W},${y0}L0,${y0}Z`);
+    document.querySelector('.chart .peak-pos').setAttribute('transform', `translate(${peak.x.toFixed(1)},${peak.y.toFixed(1)})`);
+    document.querySelector('.chart .tag-back text').setAttribute('x', (dip.x + 40).toFixed(1));
+    document.querySelector('.chart .tag-back text').setAttribute('y', (dip.y + 8).toFixed(1));
+  })();
+
+  // Speed lines that fly across the screen on every flick.
+  const streaks = fx.querySelector('.streaks');
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement('i');
+    s.style.top = `${6 + Math.random() * 88}%`;
+    s.style.width = `${220 + Math.random() * 520}px`;
+    s.style.setProperty('--dl', `${Math.random() * .16}s`);
+    streaks.append(s);
+  }
+
+  function flickFx(dir) {
+    fx.classList.remove('go', 'left', 'right');
+    void fx.offsetWidth;
+    fx.classList.add('go', dir);
+  }
+
+  function countUp(el, delay) {
+    const to = +el.dataset.to, suffix = el.dataset.suffix || '';
+    if (still) return el.textContent = to + suffix;
+    el.textContent = 0 + suffix;
+    timers.push(setTimeout(() => {
+      const start = performance.now(), dur = 1300;
+      const tick = now => {
+        const p = Math.min(1, (now - start) / dur);
+        el.textContent = Math.round(to * (1 - (1 - p) ** 3)) + suffix;
+        if (p < 1 && el.closest('.slide.shown')) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, delay));
+  }
+
+  function typeOut(el, done) {
+    const text = el.dataset.text;
+    if (still) { el.textContent = text; return done(); }
+    el.textContent = '';
+    let i = 0;
+    timers.push(setTimeout(function step() {
+      el.textContent = text.slice(0, ++i);
+      if (i < text.length) timers.push(setTimeout(step, 18 + Math.random() * 22));
+      else done();
+    }, 700));
+  }
+
+  // The Claude Code session: the prompt types out, Claude thinks, then answers line by line.
+  function playSession(slide) {
+    const think = slide.querySelector('.cc-think');
+    const lines = [...slide.querySelectorAll('.cc-line')];
+    lines.forEach(l => l.classList.remove('on'));
+    think.classList.remove('on');
+    typeOut(slide.querySelector('.typed'), () => {
+      if (still) return lines.forEach(l => l.classList.add('on'));
+      timers.push(setTimeout(() => think.classList.add('on'), 300));
+      timers.push(setTimeout(() => think.classList.remove('on'), 1500));
+      lines.forEach((l, i) => timers.push(setTimeout(() => l.classList.add('on'), 1500 + i * 700)));
+    });
+  }
+
+  function enter(slide) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    if (slide.querySelector('.cc')) playSession(slide);
+    slide.querySelectorAll('[data-to]').forEach((el, i) => countUp(el, 500 + i * 150));
+  }
+
+  function show(next, dir) {
+    if (next < 0 || next >= slides.length || (dir && next === index)) return;
+    const prev = slides[index];
+    const cur = slides[next];
+    if (dir) {
+      prev.classList.remove('active', 'shown');
+      const out = dir === 'right' ? 'to-left' : 'to-right';
+      prev.classList.add(out);
+      setTimeout(() => prev.classList.remove(out), 750);
+      cur.classList.add('notrans', dir === 'right' ? 'from-right' : 'from-left');
+      void cur.offsetWidth; // commit the start position so the entrance animates
+      cur.classList.remove('notrans', 'from-right', 'from-left');
+      flickFx(dir);
+    }
+    index = next;
+    cur.classList.add('active', 'shown');
+    enter(cur);
+    const b = counter.querySelector('b');
+    b.textContent = pad(index + 1);
+    b.classList.remove('pop');
+    void b.offsetWidth;
+    b.classList.add('pop');
+    progress.style.width = `${(index + 1) / slides.length * 100}%`;
+    history.replaceState(null, '', `${location.search}#${index + 1}`);
+  }
+
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(index + 1, 'right'); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(index - 1, 'left'); }
+    else if (e.key === 'Home') show(0, 'left');
+    else if (e.key === 'f' || e.key === 'F') {
+      document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    }
+  });
+
+  // Hide the cursor and hint when the mouse rests, so they stay out of the shot.
+  let idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
+  addEventListener('mousemove', () => {
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => document.body.classList.add('idle'), 1500);
+  });
+
+  addEventListener('resize', fit);
+  fit();
+  const start = parseInt(location.hash.slice(1), 10) - 1;
+  show(start >= 0 && start < slides.length ? start : 0);
+</script>
+</body>
+</html>

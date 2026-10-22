@@ -1,0 +1,9 @@
+# build output
+build/
+spike/
+
+# local, never published
+.env.local
+.claude/
+deck/
+.DS_Store
