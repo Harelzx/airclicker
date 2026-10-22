@@ -6,7 +6,7 @@
 
 AirClicker is a tiny macOS menu bar app. It reads the motion sensors in your AirPods, spots a quick wrist flick, and presses the arrow key for you, so it works with Keynote, PowerPoint, Google Slides, PDFs, or any deck that moves with the arrow keys. No extra hardware, no phone app.
 
-It started as a 15 minute build with [Claude Code](https://claude.com/claude-code) on the morning of a presentation, and was then tuned on a few hundred real flicks.
+It started as a 15 minute build with [Claude Code](https://claude.com/claude-code) on the morning of a presentation, and was then tuned on 159 logged test flicks.
 
 ## Requirements
 
@@ -45,6 +45,16 @@ Want to try it before your real talk? Open [`demo/index.html`](demo/index.html) 
 | Sensitivity | Low for very sharp flicks only, High for lighter flicks |
 | Reverse direction | Swaps next and back |
 | Test: send Next in 3 seconds | Checks the key press works without the AirPods |
+
+### Tips
+
+- Flick from the wrist, quick and wide. A slow turn is ignored on purpose, so normal hand movement while you talk never changes a slide.
+- Right flicks are often weaker than left ones. If they get missed, set Sensitivity to High, or turn on **Reverse direction** so your stronger flick moves forward.
+- Wait for the slide to change before the next flick: the swing back to center is ignored for about half a second.
+
+## Privacy
+
+AirClicker has no network code. Motion data stays on your Mac and is used only to detect flicks; the only thing it writes is a local log of flick timings in `~/Library/Logs/AirClicker.log`.
 
 ## How it works
 
