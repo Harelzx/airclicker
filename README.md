@@ -1,12 +1,34 @@
 # AirClicker
 
-**Turn an AirPod into a presentation clicker.** Hold one AirPod and flick your wrist: right for the next slide, left to go back.
+**Flick an AirPod. Change the slide.** Hold one AirPod and flick your wrist: right for the next slide, left to go back.
 
-<p align="center"><img src="docs/demo.gif" width="400" alt="Flicking an AirPod changes the slide on a MacBook"></p>
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](#requirements) [![Swift](https://img.shields.io/badge/Swift-F05138?logo=swift&logoColor=white)](Sources/AirClicker/main.swift) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=claude&logoColor=white)](https://claude.com/claude-code)
 
-AirClicker is a tiny macOS menu bar app. It reads the motion sensors in your AirPods, spots a quick wrist flick, and presses the arrow key for you, so it works with Keynote, PowerPoint, Google Slides, PDFs, or any deck that moves with the arrow keys. No extra hardware, no phone app.
+[Install](#install-it-with-an-ai-agent) · [Features](#features) · [A look inside](#a-look-inside) · [How it works](#how-it-works) · [Privacy](#privacy)
+
+<p align="center"><img src="docs/demo.gif" width="440" alt="Flicking an AirPod changes the slide on a MacBook"></p>
+
+AirClicker is a tiny macOS menu bar app. It reads the motion sensors in your AirPods, spots a quick wrist flick, and presses the arrow key for you. No extra hardware, no phone app.
 
 It started as a 15 minute build with [Claude Code](https://claude.com/claude-code) on the morning of a presentation, and was then tuned on 159 logged test flicks.
+
+## Features
+
+- **Flick to change slides.** Right for next, left for back, with one AirPod held between your fingers.
+- **Works with any deck.** Keynote, PowerPoint, Google Slides, PDFs, anything that moves with the arrow keys.
+- **Ignores normal movement.** Slow turns and talking with your hands never change a slide. Only a fast, wide flick counts.
+- **Tunable.** Three sensitivity levels, and a reverse switch so your stronger flick moves forward.
+- **Private.** No network code. Motion data never leaves your Mac.
+
+## A look inside
+
+Slides from the demo deck in the video. Flick through it yourself in [`demo/index.html`](demo/index.html).
+
+| It started with one message | Every AirPod has a gyroscope |
+| --- | --- |
+| ![A Claude Code session asking to turn an AirPod into a clicker](docs/story.gif) | ![A gyroscope trace with one sharp spike crossing the flick threshold](docs/gyroscope.gif) |
+| **Gyroscope in, arrow key out** | **Small tool. Big relief.** |
+| ![Sense, detect, click: the three steps from motion to key press](docs/pipeline.gif) | ![15 minutes, 1 AirPod, 159 test flicks, 0 extra hardware](docs/numbers.gif) |
 
 ## Install it with an AI agent
 
@@ -96,3 +118,7 @@ All of it is one Swift file: [`Sources/AirClicker/main.swift`](Sources/AirClicke
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+---
+
+<p align="center">A star helps other people find AirClicker. If it saved one of your talks, <a href="https://github.com/Harelzx/airclicker">leave one</a>.</p>
