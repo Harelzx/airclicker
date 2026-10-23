@@ -95,16 +95,16 @@ Want to try it before your real talk? Open [`demo/index.html`](demo/index.html) 
 
 ## Privacy
 
-AirClicker has no network code. Motion data stays on your Mac and is used only to detect flicks; the only thing it writes is a local log of flick timings in `~/Library/Logs/AirClicker.log`, capped at about 2 MB (older entries move to `AirClicker.old.log`, which is replaced each time).
+AirClicker has no network code. Motion data stays on your Mac and is used only to detect flicks. Besides your menu settings, the only thing it writes is a local log of flick timings in `~/Library/Logs/AirClicker.log`, capped at about 2 MB (older entries move to `AirClicker.old.log`, which is replaced each time).
 
 ## How it works
 
 - `CMHeadphoneMotionManager` streams the AirPod's gyroscope and gravity at about 50 Hz.
 - The rotation is projected onto gravity, so only the turn around the vertical axis counts. It doesn't matter how you hold the AirPod.
-- A turn is a flick only when it is **fast** (above ~370°/s for two samples in a row), **wide** (past 75°) and **mostly horizontal** (twisting or lifting your hand is ignored).
+- A turn is a flick only when it is **fast** (above ~370°/s for two samples in a row, ~315°/s to the right, where flicks are naturally slower), **wide** (past 75°, or 55° for a right flick once a short wait shows it wasn't a wind-up) and **mostly horizontal** (twisting or lifting your hand is ignored).
 - The swing back to center right after a flick is ignored, and so is the small pull back people make before flicking the other way.
 - A flick posts a Right or Left Arrow key event with `CGEvent`.
-- A silent audio loop keeps the AirPods connection, and the motion stream, alive while the AirPod is out of your ear.
+- A silent audio loop keeps the AirPods connection, and the motion stream, alive while the AirPod is out of your ear. It restarts by itself when the audio output changes.
 
 All of it is one Swift file: [`Sources/AirClicker/main.swift`](Sources/AirClicker/main.swift).
 

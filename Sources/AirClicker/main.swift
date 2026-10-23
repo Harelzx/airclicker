@@ -37,8 +37,8 @@ enum Sensitivity: String, CaseIterable {
     }
 }
 
-struct Settings {
-    static let defaults = UserDefaults.standard
+enum Settings {
+    private static let defaults = UserDefaults.standard
 
     static var sensitivity: Sensitivity {
         get { defaults.string(forKey: "sensitivity").flatMap(Sensitivity.init) ?? .medium }
@@ -54,7 +54,7 @@ struct Settings {
 /// Past 1 MB the log moves to AirClicker.old.log, replacing the previous one, so it never takes more than ~2 MB.
 private let maxLogSize = 1_000_000
 
-func log(_ message: String) {
+func writeLog(_ message: String) {
     let line = "\(Date()) \(message)\n"
     let path = NSHomeDirectory() + "/Library/Logs/AirClicker.log"
     let fileManager = FileManager.default
@@ -100,25 +100,41 @@ enum KeySender {
 final class SilentKeepAlive {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    private var running = false
+
+    init() {
+        engine.attach(player)
+        // Connecting or disconnecting AirPods changes the output device, which stops the engine.
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            guard let self, self.running else { return }
+            writeLog("audio output changed, restarting the silent loop")
+            self.player.stop()
+            self.play()
+        }
+    }
 
     func start() {
+        running = true
+        play()
+    }
+
+    private func play() {
+        // Reconnect every time: the output format may have changed since the last start.
         let format = engine.mainMixerNode.outputFormat(forBus: 0)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(format.sampleRate)) else { return }
         buffer.frameLength = buffer.frameCapacity // zero-filled, so silent
-        if player.engine == nil {
-            engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: format)
-        }
+        engine.connect(player, to: engine.mainMixerNode, format: format)
         do {
             try engine.start()
             player.scheduleBuffer(buffer, at: nil, options: .loops)
             player.play()
         } catch {
-            log("audio engine failed: \(error)")
+            writeLog("audio engine failed: \(error)")
         }
     }
 
     func stop() {
+        running = false
         player.stop()
         engine.stop()
     }
@@ -140,8 +156,8 @@ final class SilentKeepAlive {
 /// Right after a flick, a turn the other way is the swing back to center and never counts.
 final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
     var onFlick: ((SlideAction) -> Void)?
-    var onStatusChange: (() -> Void)?
     private(set) var isReceiving = false
+    private var running = false
 
     private let manager = CMHeadphoneMotionManager()
     private var lastSample = Date.distantPast
@@ -197,26 +213,33 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
     func start() {
         guard !manager.isDeviceMotionActive else { return }
         guard manager.isDeviceMotionAvailable else {
-            log("head motion not available")
+            writeLog("head motion not available")
             return
         }
         burst = nil
         pending = nil
+        sampleCount = 0
+        rateWindowStart = 0
+        running = true
         manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, error in
-            if let error { log("head motion error: \(error)") }
-            guard let self, let motion else { return }
+            if let error { writeLog("head motion error: \(error)") }
+            // Updates already queued when stop() ran must not fire a slide.
+            guard let self, self.running, let motion else { return }
             self.lastSample = Date()
             self.setReceiving(true)
             self.handle(motion)
         }
         // The stream can stall (AirPod in the case, out of range); show that in the menu.
-        watchdog = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             if Date().timeIntervalSince(self.lastSample) > 1.5 { self.setReceiving(false) }
         }
+        RunLoop.main.add(timer, forMode: .common) // keeps running while the menu is open
+        watchdog = timer
     }
 
     func stop() {
+        running = false
         manager.stopDeviceMotionUpdates()
         watchdog?.invalidate()
         watchdog = nil
@@ -265,7 +288,7 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
             current.fastSamples = 0
         }
         guard current.sharp else { return }
-        guard abs(current.angle) > minAngle else { // fixed: it is what tells a wind-up from a flick
+        guard abs(current.angle) > minAngle else { // not scaled by sensitivity: this angle is what tells a wind-up from a flick
             current.reason = "too short (wind-up)"
             return
         }
@@ -289,7 +312,7 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
     private func fire(right: Bool, angle: Double, now: TimeInterval, late: Bool = false) {
         lastFireTime = now
         lastFireRight = right
-        log(String(format: "flick %@ at %.0f°%@", right ? "right" : "left", abs(angle) * 180 / .pi, late ? " (short, after wait)" : ""))
+        writeLog(String(format: "flick %@ at %.0f°%@", right ? "right" : "left", abs(angle) * 180 / .pi, late ? " (short, after wait)" : ""))
         onFlick?(right != Settings.reversed ? .next : .previous)
     }
 
@@ -298,11 +321,13 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
         guard let waiting = pending else { return }
         if let current = burst, current.right != waiting.right, current.sharp {
             pending = nil
-            log(String(format: "short %@ turn of %.0f° dropped: pull back before a flick", waiting.right ? "right" : "left", abs(waiting.angle) * 180 / .pi))
+            writeLog(String(format: "short %@ turn of %.0f° dropped: pull back before a flick", waiting.right ? "right" : "left", abs(waiting.angle) * 180 / .pi))
             return
         }
         guard now - waiting.end >= windupWait else { return }
         pending = nil
+        // After a stall (AirPod back in its case, out of range) the turn is too old to act on.
+        guard now - waiting.end < windupWait + 0.2 else { return }
         if blocked(right: waiting.right, start: waiting.start, now: now) == nil {
             fire(right: waiting.right, angle: waiting.angle, now: now, late: true)
         }
@@ -319,7 +344,7 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
            blocked(right: current.right, start: current.start, now: current.lastTime) == nil {
             pending = Pending(right: current.right, start: current.start, end: current.lastTime, angle: current.angle)
         }
-        log(String(format: "burst %@ %@: peak %.1f (total %.1f) rad/s, rise %.0fms, length %.0fms, angle %.0f°, gap %.0fms, t=%.3f",
+        writeLog(String(format: "burst %@ %@: peak %.1f (total %.1f) rad/s, rise %.0fms, length %.0fms, angle %.0f°, gap %.0fms, t=%.3f",
                    current.right ? "R" : "L",
                    current.fired ? "FIRED" : "rejected (\(current.reason))",
                    current.peakYaw, current.peakTotal,
@@ -332,7 +357,7 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
         sampleCount += 1
         if rateWindowStart == 0 { rateWindowStart = now }
         guard now - rateWindowStart >= 60 else { return }
-        log(String(format: "motion rate %.0f Hz", Double(sampleCount) / (now - rateWindowStart)))
+        writeLog(String(format: "motion rate %.0f Hz", Double(sampleCount) / (now - rateWindowStart)))
         sampleCount = 0
         rateWindowStart = now
     }
@@ -340,48 +365,56 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
     private func setReceiving(_ on: Bool) {
         guard on != isReceiving else { return }
         isReceiving = on
-        log("head motion data \(on ? "flowing" : "stopped")")
-        onStatusChange?()
+        writeLog("head motion data \(on ? "flowing" : "stopped")")
     }
 
+    // The delegate callbacks only log, to explain gaps in the motion stream when reading the log.
     func headphoneMotionManagerDidConnect(_ manager: CMHeadphoneMotionManager) {
-        log("head motion: headphones connected")
+        writeLog("head motion: headphones connected")
     }
 
     func headphoneMotionManagerDidDisconnect(_ manager: CMHeadphoneMotionManager) {
-        log("head motion: headphones disconnected")
+        writeLog("head motion: headphones disconnected")
     }
 }
 
 // MARK: - Menu bar app
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let keepAlive = SilentKeepAlive()
     private let flick = FlickListener()
     private var active = false
-    private var lastEvent = "—"
+    private var lastEvent = "nothing yet"
     private var flashTimer: Timer?
+
+    private var restingIcon: String { active ? "airpodspro" : "airpodspro.chargingcase.wireless" }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        setIcon("airpodspro")
+        let menu = NSMenu()
+        menu.delegate = self // filled in menuNeedsUpdate, so it is always current when opened
+        statusItem.menu = menu
 
         flick.onFlick = { [weak self] action in
             self?.perform(action, source: "Flick")
         }
-        flick.onStatusChange = { [weak self] in self?.rebuildMenu() }
 
+        // Also adds AirClicker to the Accessibility list, so the user only has to switch it on.
         if !KeySender.isTrusted { KeySender.requestTrust() }
         setActive(true)
     }
 
     private func perform(_ action: SlideAction, source: String) {
-        log("\(source) -> \(action.rawValue)")
+        guard KeySender.isTrusted else {
+            writeLog("\(source) -> \(action.rawValue) not sent: no Accessibility permission")
+            lastEvent = "\(source) → not sent (needs Accessibility)"
+            return
+        }
+        writeLog("\(source) -> \(action.rawValue)")
         lastEvent = "\(source) → \(action.title)"
         KeySender.send(action)
         flash(action == .next ? "forward.fill" : "backward.fill")
-        rebuildMenu()
     }
 
     private func setActive(_ on: Bool) {
@@ -393,8 +426,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flick.stop()
             keepAlive.stop()
         }
-        setIcon(on ? "airpodspro" : "airpodspro.chargingcase.wireless")
-        rebuildMenu()
+        setIcon(restingIcon)
     }
 
     private func setIcon(_ symbol: String) {
@@ -408,13 +440,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func flash(_ symbol: String) {
         setIcon(symbol)
         flashTimer?.invalidate()
-        flashTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
-            self?.setIcon("airpodspro")
+        let timer = Timer(timeInterval: 0.4, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.setIcon(self.restingIcon)
         }
+        RunLoop.main.add(timer, forMode: .common)
+        flashTimer = timer
     }
 
-    private func rebuildMenu() {
-        let menu = NSMenu()
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
 
         let toggle = NSMenuItem(title: "Presentation mode", action: #selector(toggleActive), keyEquivalent: "")
         toggle.target = self
@@ -455,8 +490,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(test)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit AirClicker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-
-        statusItem.menu = menu
     }
 
     private func disabled(_ title: String) -> NSMenuItem {
@@ -470,16 +503,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func chooseSensitivity(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let level = Sensitivity(rawValue: raw) else { return }
         Settings.sensitivity = level
-        rebuildMenu()
     }
 
     @objc private func toggleReversed() {
         Settings.reversed.toggle()
-        rebuildMenu()
     }
 
     @objc private func openAccessibility() {
-        KeySender.requestTrust()
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
@@ -490,8 +520,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// LSUIElement in Info.plist keeps AirClicker out of the Dock: it lives only in the menu bar.
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.accessory)
 app.run()
