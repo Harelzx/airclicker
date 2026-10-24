@@ -380,6 +380,43 @@ final class FlickListener: NSObject, CMHeadphoneMotionManagerDelegate {
 
 // MARK: - Menu bar app
 
+/// The menu bar icon: one tilted AirPod with two motion arcs, so it doesn't look like the
+/// system's own AirPods control next to it. Drawn as a template so it follows light and dark menu bars.
+enum StatusIcon {
+    static let flick: NSImage = {
+        let image = NSImage(size: NSSize(width: 20, height: 18), flipped: false) { _ in
+            if let pod = NSImage(systemSymbolName: "airpod.right", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 17, weight: .medium)) {
+                NSGraphicsContext.current?.saveGraphicsState()
+                let tilt = NSAffineTransform()
+                tilt.translateX(by: 7.5, yBy: 9)
+                tilt.rotate(byDegrees: -20)
+                tilt.concat()
+                pod.draw(in: NSRect(x: -pod.size.width / 2, y: -pod.size.height / 2, width: pod.size.width, height: pod.size.height))
+                NSGraphicsContext.current?.restoreGraphicsState()
+            }
+            NSColor.black.setStroke()
+            for radius in [6.0, 9.0] {
+                let arc = NSBezierPath()
+                arc.appendArc(withCenter: NSPoint(x: 8, y: 9), radius: radius, startAngle: -35, endAngle: 35)
+                arc.lineWidth = 1.4
+                arc.lineCapStyle = .round
+                arc.stroke()
+            }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "AirClicker"
+        return image
+    }()
+
+    static func symbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: "AirClicker")
+        image?.isTemplate = true
+        return image
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let keepAlive = SilentKeepAlive()
@@ -387,8 +424,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var active = false
     private var lastEvent = "nothing yet"
     private var flashTimer: Timer?
-
-    private var restingIcon: String { active ? "airpodspro" : "airpodspro.chargingcase.wireless" }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -426,23 +461,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             flick.stop()
             keepAlive.stop()
         }
-        setIcon(restingIcon)
+        setIcon(StatusIcon.flick)
     }
 
-    private func setIcon(_ symbol: String) {
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "AirClicker")
-            ?? NSImage(systemSymbolName: "headphones", accessibilityDescription: "AirClicker")
-        image?.isTemplate = true
+    /// Dimmed while presentation mode is off.
+    private func setIcon(_ image: NSImage?) {
         statusItem.button?.image = image
         statusItem.button?.appearsDisabled = !active
     }
 
     private func flash(_ symbol: String) {
-        setIcon(symbol)
+        setIcon(StatusIcon.symbol(symbol))
         flashTimer?.invalidate()
         let timer = Timer(timeInterval: 0.4, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            self.setIcon(self.restingIcon)
+            self?.setIcon(StatusIcon.flick)
         }
         RunLoop.main.add(timer, forMode: .common)
         flashTimer = timer
