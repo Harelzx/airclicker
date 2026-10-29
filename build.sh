@@ -15,6 +15,8 @@ IDENTITY="${SIGN_IDENTITY:--}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp Info.plist "$APP/Contents/Info.plist"
+mkdir -p "$APP/Contents/Resources"
+cp assets/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 swiftc -swift-version 5 -O -target "$(uname -m)-apple-macos14.0" \
     Sources/AirClicker/main.swift -o "$APP/Contents/MacOS/AirClicker"
 codesign --force --sign "$IDENTITY" "$APP"

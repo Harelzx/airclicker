@@ -44,9 +44,10 @@ Install AirClicker on my Mac from https://github.com/Harelzx/airclicker. It is a
 5. macOS asks for two permissions, and both prompts can pop up at the same time. Walk me through them one at a time and wait for me after each:
    - Motion & Fitness: if the dialog appears, click Allow.
    - Accessibility: if macOS shows its own prompt, click Open System Settings. Otherwise click the AirPod icon in the menu bar and choose "Grant Accessibility permission…". Then turn AirClicker on in System Settings → Privacy & Security → Accessibility.
-6. Tell me how to use it: connect my AirPods to the Mac and make them the sound output. Presentation mode is already on when the app starts, so I don't need to touch it. Check that the menu shows "Motion sensors: receiving ●" (if it says "no data", turn Presentation mode off and on again). Then hold one AirPod and flick right for the next slide, left for the previous one.
-7. Offer to open the practice deck in my browser with `open ~/airclicker/demo/index.html`.
-8. Remind me how to update later: `git pull`, `./build.sh`, quit AirClicker, copy the new app to /Applications again and reopen it. macOS will then ask for its permissions again: remove the old AirClicker entry in Accessibility and turn on the new one.
+6. Next, before explaining how to use it, tell me in the chat, as its own message: **"Turn off Automatic Ear Detection on your iPhone too, not only on the Mac"** (iPhone: Settings → my AirPods → Automatic Ear Detection; Mac: System Settings → my AirPods → Automatic Ear Detection; same for any other Apple device the AirPods are paired with) (the AirPods settings only appear while the AirPods are connected to that device; if they're missing, connect them to it first, or use Bluetooth → ⓘ next to the AirPods). Explain why in one line: an AirPod held in the hand counts as out of the ear, so while Ear Detection is on anywhere, the sound and the motion data move off the AirPods and AirClicker gets nothing. Wait until I confirm I turned it off on every device the AirPods are paired with.
+7. Tell me how to use it: connect my AirPods to the Mac and make them the sound output. Presentation mode is already on when the app starts, so I don't need to touch it. Check that the menu shows "Motion sensors: receiving ●" (if it says "no data", check Ear Detection again, then turn Presentation mode off and on). If macOS now asks for Motion & Fitness, click Allow. Then hold one AirPod and flick right for the next slide, left for the previous one.
+8. Offer to open the practice deck in my browser with `open ~/airclicker/demo/index.html`.
+9. Remind me how to update later: `git pull`, `./build.sh`, quit AirClicker, delete the old /Applications/AirClicker.app, copy the new one there and reopen it. macOS will then ask for its permissions again: remove the old AirClicker entry in Accessibility and turn on the new one.
 ```
 
 ## Requirements
@@ -65,14 +66,22 @@ cp -R build/AirClicker.app /Applications/
 open /Applications/AirClicker.app
 ```
 
-The first time it runs, macOS asks for two permissions (the two prompts can appear together):
+macOS asks for two permissions. The two prompts can appear together, and Motion & Fitness may wait until the AirPods are connected:
 
 1. **Motion & Fitness**, to read the AirPods sensors. Click Allow.
 2. **Accessibility**, to press the arrow keys. Choose *Grant Accessibility permission…* in the menu, then turn AirClicker on in System Settings → Privacy & Security → Accessibility.
 
 ## Use it
 
-1. Connect your AirPods to the Mac.
+> [!IMPORTANT]
+> **Turn off Automatic Ear Detection on your iPhone too, not only on the Mac.** An AirPod held in your hand counts as out of the ear. While Ear Detection is on, on any device the AirPods are paired with, the sound and the motion data move off the AirPods and AirClicker gets nothing.
+>
+> - **iPhone**: Settings → your AirPods → Automatic Ear Detection → off
+> - **Mac**: System Settings → your AirPods → Automatic Ear Detection → off
+>
+> Your AirPods show up in Settings only while they're connected to that device. If they're missing, connect them first, or go through Bluetooth → ⓘ next to the AirPods.
+
+1. Connect your AirPods to the Mac and make them the sound output.
 2. Click the AirPod icon in the menu bar. **Presentation mode** is on by default, and the menu should show *Motion sensors: receiving ●*.
 3. Take one AirPod out, hold it between your fingers, and open your slides.
 4. **Flick right → next slide. Flick left → previous slide.** A quick, wide flick, like turning a key.
@@ -112,7 +121,8 @@ All of it is one Swift file: [`Sources/AirClicker/main.swift`](Sources/AirClicke
 
 ## Troubleshooting
 
-- **"Motion sensors: no data"**: make sure the AirPods are the Mac's current audio output, then toggle Presentation mode off and on.
+- **"Motion sensors: no data"**: make sure the AirPods are the Mac's current audio output and Automatic Ear Detection is off on the Mac **and on your iPhone**, then toggle Presentation mode off and on. While there's no data, the menu shows a reminder and a link to the Bluetooth settings.
+- **"Allow Motion & Fitness…" in the menu**: the permission was denied. Turn AirClicker on in System Settings → Privacy & Security → Motion & Fitness, then toggle Presentation mode off and on.
 - **Slides don't move**: the presentation app has to be the active window. Click on it once. Also check the Accessibility permission.
 - **Asked for Accessibility again after rebuilding**: the default build is signed ad hoc, so macOS treats each build as a new app. Remove the old entry in Accessibility and add the new one, or sign with your own Apple Development identity (see the top of `build.sh`).
 - **Flicks are missed or too eager**: change Sensitivity. Every flick is logged with its speed and angle in `~/Library/Logs/AirClicker.log`, which helps when tuning.

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#2E4A7D"/>
+      <stop offset="1" stop-color="#14213D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.62" cy="0.36" r="0.6">
+      <stop offset="0" stop-color="#4C6FA8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#4C6FA8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pod" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDE3EC"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.6" stop-color="#F2F5F9"/>
+      <stop offset="1" stop-color="#D3DAE5"/>
+    </linearGradient>
+    <linearGradient id="tip" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E9EDF3"/>
+      <stop offset="1" stop-color="#C3CCD9"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#060B16" flood-opacity="0.45"/>
+    </filter>
+    <filter id="iconShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <!-- macOS squircle tile -->
+  <g filter="url(#iconShadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+    <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="3"/>
+  </g>
+
+  <!-- motion arcs (flick) -->
+  <g fill="none" stroke-linecap="round" transform="translate(478 456)">
+    <path d="M 196.6 -137.7 A 240 240 0 0 1 196.6 137.7" stroke="#F2A65A" stroke-width="34"/>
+    <path d="M 270.3 -189.3 A 330 330 0 0 1 270.3 189.3" stroke="#F7CB9B" stroke-width="30"/>
+  </g>
+
+  <!-- AirPod Pro, tilted -->
+  <g transform="rotate(-20 478 456)" filter="url(#shadow)">
+    <!-- stem -->
+    <rect x="482" y="470" width="96" height="330" rx="48" fill="url(#stem)"/>
+    <rect x="512" y="760" width="36" height="18" rx="9" fill="#9AA6B8" opacity="0.7"/>
+    <!-- head -->
+    <path d="M 470 300
+             C 560 296, 628 352, 628 440
+             C 628 510, 584 556, 520 562
+             C 470 566, 420 540, 396 496
+             C 372 452, 372 380, 404 342
+             C 422 318, 444 302, 470 300 Z" fill="url(#pod)"/>
+    <!-- ear tip -->
+    <ellipse cx="372" cy="420" rx="64" ry="78" fill="url(#tip)"/>
+    <ellipse cx="350" cy="420" rx="26" ry="40" fill="#AEB8C8" opacity="0.6"/>
+    <!-- sensor -->
+    <ellipse cx="560" cy="380" rx="22" ry="12" transform="rotate(35 560 380)" fill="#2B3445"/>
+  </g>
+</svg>

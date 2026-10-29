@@ -490,6 +490,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(disabled("Flick an AirPod: right = next, left = back"))
         if active {
             menu.addItem(disabled(flick.isReceiving ? "Motion sensors: receiving ●" : "Motion sensors: no data ○"))
+            switch CMHeadphoneMotionManager.authorizationStatus() {
+            case .denied, .restricted:
+                let allow = NSMenuItem(title: "⚠︎ Allow Motion & Fitness…", action: #selector(openMotion), keyEquivalent: "")
+                allow.target = self
+                menu.addItem(allow)
+            default:
+                // Holding an AirPod counts as "out of the ear", so Ear Detection moves the sound off it and the data stops.
+                if !flick.isReceiving {
+                    menu.addItem(disabled("Needs AirPods as output, Ear Detection off (iPhone too)"))
+                    let airpods = NSMenuItem(title: "Open Bluetooth settings…", action: #selector(openBluetooth), keyEquivalent: "")
+                    airpods.target = self
+                    menu.addItem(airpods)
+                }
+            }
         }
         menu.addItem(.separator())
 
@@ -542,7 +556,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openAccessibility() {
+        // Asking again puts AirClicker back in the list, e.g. after its old entry was removed.
+        KeySender.requestTrust()
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+
+    @objc private func openMotion() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Motion")!)
+    }
+
+    @objc private func openBluetooth() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)
     }
 
     @objc private func testNext() {
