@@ -40,13 +40,13 @@ Install AirClicker on my Mac from https://github.com/Harelzx/airclicker. It is a
 1. Check that I'm on macOS 14 or later (`sw_vers`). If not, stop and tell me it won't run.
 2. Check that the Swift compiler is available (`xcode-select -p`; the Xcode Command Line Tools or full Xcode both work). If it's missing, run `xcode-select --install`, tell me to click Install in the window that opens, and wait until I confirm it finished.
 3. Clone the repo into ~/airclicker (or `git pull` there if it already exists), then run `./build.sh` inside it. If the build fails, show me the error and fix it before going on.
-4. Copy build/AirClicker.app to /Applications (replace any older copy) and open /Applications/AirClicker.app.
+4. If an older AirClicker is running, quit it. Delete any old /Applications/AirClicker.app, copy build/AirClicker.app to /Applications, and open /Applications/AirClicker.app.
 5. macOS asks for two permissions, and both prompts can pop up at the same time. Walk me through them one at a time and wait for me after each:
    - Motion & Fitness: if the dialog appears, click Allow.
    - Accessibility: if macOS shows its own prompt, click Open System Settings. Otherwise click the AirPod icon in the menu bar and choose "Grant Accessibility permission…". Then turn AirClicker on in System Settings → Privacy & Security → Accessibility.
 6. Tell me how to use it: connect my AirPods to the Mac and make them the sound output. Presentation mode is already on when the app starts, so I don't need to touch it. Check that the menu shows "Motion sensors: receiving ●" (if it says "no data", turn Presentation mode off and on again). Then hold one AirPod and flick right for the next slide, left for the previous one.
 7. Offer to open the practice deck in my browser with `open ~/airclicker/demo/index.html`.
-8. Remind me that if I rebuild it later (for example after a `git pull`), macOS will ask for Accessibility again: remove the old AirClicker entry and turn on the new one.
+8. Remind me how to update later: `git pull`, `./build.sh`, quit AirClicker, copy the new app to /Applications again and reopen it. macOS will then ask for its permissions again: remove the old AirClicker entry in Accessibility and turn on the new one.
 ```
 
 ## Requirements
